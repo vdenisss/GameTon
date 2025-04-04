@@ -1,45 +1,86 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Text;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace GameTon
 {
-    internal class Words
+    // Классы для десериализации ответа
+    public class ApiResponse
     {
-        public void GetWords()
+        public int[] MapSize { get; set; }
+        public int Turn { get; set; }
+        public int NextTurnSec { get; set; }
+        public int[] UsedIndexes { get; set; }
+        public DateTime RoundEndsAt { get; set; }
+        public int ShuffleLeft { get; set; }
+        public string[] Words { get; set; }
+    }
+    public static class Words
+    {
+        private static readonly HttpClient _client = new HttpClient();
+
+        public static async Task GetWords()
         {
-            string apiUrl = "https://api.example.com/protected-data";
+            string apiUrl = "https://games-test.datsteam.dev/api/words";
             string authToken = "c2862f30-2848-48c5-ac44-e310b98bec6d";
+            string outputFile = "C:\\Users\\denis\\source\\repos\\GameTon\\GameTon\\words.txt";
 
-            using (var client = new WebClient())
+            // Настройка клиента
+            _client.DefaultRequestHeaders.Accept.Clear();
+            _client.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+            _client.DefaultRequestHeaders.Add("X-Auth-Token", authToken);
+
+            try
             {
-                // Добавляем заголовок авторизации
-                client.Headers[HttpRequestHeader.Authorization] = $"Bearer {authToken}";
+                // Отправка GET-запроса
+                HttpResponseMessage response = await _client.GetAsync(apiUrl);
+                string responseBody = await response.Content.ReadAsStringAsync();
 
-                // Добавляем заголовок для указания типа контента (если нужно)
-                client.Headers[HttpRequestHeader.ContentType] = "application/json";
-
-                try
+                if (response.IsSuccessStatusCode)
                 {
-                    string response = client.DownloadString(apiUrl);
-                    Console.WriteLine(response);
-                }
-                catch (WebException ex)
-                {
-                    Console.WriteLine($"Ошибка: {ex.Message}");
-                    if (ex.Response != null)
+                    // Настройки десериализации
+                    var options = new JsonSerializerOptions
                     {
-                        using (var stream = ex.Response.GetResponseStream())
-                        using (var reader = new StreamReader(stream))
+                        PropertyNameCaseInsensitive = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    };
+
+                    // Десериализация
+                    var result = JsonSerializer.Deserialize<ApiResponse>(responseBody, options);
+
+                    using (StreamWriter writer = new StreamWriter(outputFile))
+                    {
+                        foreach (string word in result.Words)
                         {
-                            Console.WriteLine(reader.ReadToEnd());
+                            await writer.WriteLineAsync(word);
                         }
                     }
+
+                    // Вывод результата
+                    Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    }));
                 }
+                else
+                {
+                    Console.WriteLine($"Ошибка: {response.StatusCode}");
+                    Console.WriteLine(responseBody);
+                }
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine($"Ошибка запроса: {e.Message}");
+            }
+            catch (JsonException e)
+            {
+                Console.WriteLine($"Ошибка парсинга JSON: {e.Message}");
             }
         }
     }
