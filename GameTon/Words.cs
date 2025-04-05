@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -21,24 +22,22 @@ namespace GameTon
     }
     public static class Words
     {
-        private static readonly HttpClient _client = new HttpClient();
-
-        public static async Task GetWords()
+        public static async Task GetWordsInFile(string outputFile)
         {
             string apiUrl = "https://games-test.datsteam.dev/api/words";
             string authToken = "c2862f30-2848-48c5-ac44-e310b98bec6d";
-            string outputFile = "C:\\Users\\denis\\source\\repos\\GameTon\\GameTon\\words.txt";
 
+            var client = new HttpClient();
             // Настройка клиента
-            _client.DefaultRequestHeaders.Accept.Clear();
-            _client.DefaultRequestHeaders.Accept.Add(
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
-            _client.DefaultRequestHeaders.Add("X-Auth-Token", authToken);
+            client.DefaultRequestHeaders.Add("X-Auth-Token", authToken);
 
             try
             {
                 // Отправка GET-запроса
-                HttpResponseMessage response = await _client.GetAsync(apiUrl);
+                HttpResponseMessage response = await client.GetAsync(apiUrl);
                 string responseBody = await response.Content.ReadAsStringAsync();
 
                 if (response.IsSuccessStatusCode)
@@ -62,11 +61,11 @@ namespace GameTon
                     }
 
                     // Вывод результата
-                    Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    }));
+                    //Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions
+                    //{
+                    //    WriteIndented = true,
+                    //    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    //}));
                 }
                 else
                 {
@@ -82,6 +81,31 @@ namespace GameTon
             {
                 Console.WriteLine($"Ошибка парсинга JSON: {e.Message}");
             }
+        }
+
+        public static Dictionary<int, string> SearchTwoWordsForLetterInPosition(List<string> words,
+            int firstIndex, int secondIndex, char firstLetter, char secondLetter)
+        {
+            return words
+            .Select((word, index) => (word, index)) // Сохраняем индекс каждого слова
+            .Where(item =>
+                item.word.Length > Math.Max(firstIndex, secondIndex) && // Проверяем, что слово достаточно длинное
+                char.ToLower(item.word[firstIndex]) == char.ToLower(firstLetter) && // Первая буква
+                char.ToLower(item.word[secondIndex]) == char.ToLower(secondLetter))   // Вторая буква
+            .ToDictionary(item => item.index, item => item.word);
+
+        }
+
+        public static Dictionary<int, string> SearchOneWordForLetterInPosition(List<string> words,
+            int firstIndex, char firstLetter)
+        {
+            return words
+            .Select((word, index) => (word, index)) // Сохраняем индекс каждого слова
+            .Where(item =>
+                item.word.Length == firstIndex + 1 &&
+                char.ToLower(item.word[firstIndex]) == char.ToLower(firstLetter))
+            .ToDictionary(item => item.index, item => item.word);
+
         }
     }
 }
